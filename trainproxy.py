@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import csv
 import subprocess
-import json
 import shlex
 import os
 import sys
@@ -66,7 +65,8 @@ print("Rows per query %s" % (ROWS))
 
 #constants used for the SOLR and Ranker URLs
 BASEURL="https://gateway.watsonplatform.net/retrieve-and-rank/api/v1/"
-SOLRURL= "http://localhost:9216"
+#SOLRURL= BASEURL+"solr_clusters/%s/solr/%s/fcselect" % (CLUSTER, COLLECTION)
+SOLRURL = "http://0.0.0.0:9216/fcselect"
 RANKERURL=BASEURL+"rankers"
 
 with open(RELEVANCE_FILE, 'rb') as csvfile:
@@ -77,27 +77,42 @@ with open(RELEVANCE_FILE, 'rb') as csvfile:
         for row in question_relevance:
             question = row[0]
             relevance = ','.join(row[1:])
-            curl_cmd = 'curl -k -s %s -u %s -d "q=%s&gt=%s&generateHeader=%s&rows=%s&returnRSInput=true&wt=json" "%s"' % (VERBOSE, CREDS, question, relevance, add_header, ROWS, SOLRURL)
+            #curl_cmd = 'curl -k "%s?q=%s&gt=%s&rows=%s&generateHeader=%s&returnRSInput=true&fl=id,title,text,accepted,views&wt=json"' % (SOLRURL, question, relevance, ROWS, add_header)
+            # Modify the curl command to add additional fields to be retrieved depending upon the partner/demo need.
+
+            curl_cmd = 'curl -k "%fs?q=%s&gt=%s&rows=%s&generateHeader=%s&returnRSInput=true&fl=id,topic,source,doc_type,text_description&wt=json"' % (SOLRURL, question, relevance, ROWS, add_header)
             if DEBUG:
                 print (curl_cmd)
-            process = subprocess.Popen(shlex.split(curl_cmd), stdout=subprocess.PIPE)
-            output = process.communicate()[0]
+            #process = subprocess.Popen(shlex.split(curl_cmd), stdout=subprocess.PIPE)
+            #output = process.communicate()[0]
+
+            # Logic to invoke the proxy application instead of the R&R API. This is needed to generate new features for training/testing the ranker
             if DEBUG:
-               print (output)
+                print ('DEBUG')
             try:
-               parsed_json = json.loads(output)
-               training_file.write(parsed_json['RSInput'])
+                import requests
+                fcselect_url = 'http://0.0.0.0:9216/fcselect'
+                params = {'q':question, 'gt':relevance, 'rows':30, 'generateHeader': add_header, 'returnRSInput':'true', 'fl':'id,topic,source,doc_type,text_description', 'wt':'json','fq':''}
+                print (params)
+                resp = requests.get(fcselect_url, params=params, headers={'Accept':'application/json'})
+                if resp == None:
+                    continue
+                parsed_json = resp.json()
+                #parsed_json = json.load(resp)
+                print(parsed_json)
+                training_file.write(parsed_json['RSInput'])
             except:
-               print ('Command:')
-               print (curl_cmd)
-               print ('Response:')
-               print (output)
-               raise
+                print ('Command:')
+                print (curl_cmd)
+                print ('Response:')
+                print (resp)
+                raise
             add_header = 'false'
 print ('Generating training data complete.')
 
-# Train the ranker with the training data that was generate above from the query/relevance input     
+# Train the ranker with the training data that was generate above from the query/relevance input
 ranker_curl_cmd = 'curl -k -X POST -u %s -F training_data=@%s -F training_metadata="{\\"name\\":\\"%s\\"}" %s' % (CREDS, TRAININGDATA, RANKERNAME, RANKERURL)
+print (ranker_curl_cmd)
 if DEBUG:
     print (ranker_curl_cmd)
 process = subprocess.Popen(shlex.split(ranker_curl_cmd), stdout=subprocess.PIPE)
