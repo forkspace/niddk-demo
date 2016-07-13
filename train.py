@@ -20,7 +20,7 @@ COLLECTION=''
 RELEVANCE_FILE=''
 RANKERNAME=''
 ROWS='10'
-DEBUG=False
+DEBUG=True
 VERBOSE=''
 
 def usage():
@@ -66,7 +66,7 @@ print("Rows per query %s" % (ROWS))
 
 #constants used for the SOLR and Ranker URLs
 BASEURL="https://gateway.watsonplatform.net/retrieve-and-rank/api/v1/"
-SOLRURL= "http://localhost:9216"
+SOLRURL= BASEURL+"solr_clusters/%s/solr/%s/fcselect" % (CLUSTER, COLLECTION)
 RANKERURL=BASEURL+"rankers"
 
 with open(RELEVANCE_FILE, 'rb') as csvfile:

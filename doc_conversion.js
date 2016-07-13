@@ -14,13 +14,15 @@ cli.main(function(args,options) {
 });
 
 var document_conversion = watson.document_conversion({
-  username: 'f6daaec5-7b8f-4a89-bee2-f9a17be88368',
-  password: 'WyA3DNxwj3IH',
+  username: '2682efff-1725-44dd-b1d6-0e20c3af36ed',
+  password: 'fr8Wq22flRAQ',
   version: 'v1',
 	version_date: '2015-12-01'
 });
 
+var entriesCount = 0;
 var inputDirectory = __dirname + '/' + options.dir;
+
 
 var walk = function(directory, done) {
   var results = [];
@@ -46,10 +48,26 @@ var walk = function(directory, done) {
   });
 };''
 
-walk(inputDirectory, function(err, results) {
-  if (err) throw err;
-  console.log(results);
+fs.unlink('solrdocs.json', function(err){
+        if(err)
+          console.error(err);
+        else
+           fs.appendFile('solrdocs.json', '[', function(err) {
+              if(err)
+                return console.log(err);
+              else {
+                walk(inputDirectory, function(err, results) {
+                  if (err) 
+                    throw err;
+                  console.log(results);
+                });
+              }
+
+            }); 
 });
+
+
+
 
 function convert(file) {
   // convert a single document
@@ -67,17 +85,45 @@ function convert(file) {
     if (err) {
       console.error(err);
     } else {
-      writeLocal(response);
+          writeLocal(response);
     }
   });
 }
 
+var solrDocWriter = function(){
+  
+  var entriesCounter = 0;
+  
+  var write = function(){
+
+  };
+
+  var close = function(){
+
+
+  };
+
+  var return{ write: write, close: close};
+};
+
 function writeLocal(data) {
+
   console.log('Writing a document...');
   var answerUnits = data.answer_units;
   //var solrWrapper = [];
   var title = answerUnits[0].title;
-  answerUnits.forEach(function(value) {
+
+  if(0 == entriesCount){
+    fs.appendFile('solrdocs.json', '[', function(err) {
+      if(err)
+        return console.log(err);
+    });
+  }
+  
+
+  for( var i=0; i<answerUnits.length; i++ ) {
+  //answerUnits.forEach(function(value) {
+    var value = answerUnits[i];
     var solrDoc = convertAnswerUnit2SolrDoc(value);
     solrDoc = addDocumentFields(solrDoc, title);
 		solrDoc = JSON.stringify(solrDoc);
@@ -88,13 +134,17 @@ function writeLocal(data) {
     //solrWrapper.push(solrDoc);
 		//console.log(solrWrapper);
 		//var docContents = ',' + JSON.stringify(solrWrapper);
-    fs.appendFile('solrdocs.json', solrDoc + ',', function(err) {
-      if(err) {
+    fs.appendFile('solrdocs.json', (i > 0 ? ',' + solrDoc : solrDoc) , function(err) {
+      if(err) 
         return console.log(err);
-      }
+      
     });
+  };
+  fs.appendFile('solrdocs.json', ']', function(err) {
+      if(err)
+        return console.log(err);
   });
-		return;
+	return;
 };
 
 function convertAnswerUnit2SolrDoc(au) {
@@ -146,5 +196,6 @@ function addDocumentFields(solrDoc, title) {
     solrDoc.doc_type = 'boilerplate';
   }
 	console.log(solrDoc.source + " " + solrDoc.topic + " " + solrDoc.doc_type);
+  //console.log(solrDoc.topic + " " + solrDoc.doc_type);
   return(solrDoc);
 };
